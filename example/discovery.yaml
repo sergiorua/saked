@@ -1,0 +1,48 @@
+---
+config:
+  loadBalancerName: CoolDiscoveryELB
+  region: eu-west-1
+  securityGroup: default
+  sslCert: arn:aws:acm:eu-west-1:111111111111111:xxxxxxxxxxxxxxxxx
+  securityGroups: 
+    - sg-xxxxxxxxxxxxxxxxx
+  subnets:
+    - subnet-xxxxxxxxxxxxxxxxx
+    - subnet-xxxxxxxxxxxxxxxxx
+    - subnet-xxxxxxxxxxxxxxxxx
+  route53:
+    zone: XXXX
+    enabled: true
+
+endpoints:
+  - name: ES
+    type: es
+    search:
+      domainName: my-elasticsearch-domain
+      region: eu-west-1
+    domainName: es.mydomain.com
+    path: /
+    port: 80
+
+  - name: My EC2 instance
+    type: ec2
+    search:
+      tags:
+        - name: Name
+          value: random_name
+        - name: Version
+          value: latest
+    domainName: myec2.mydomain.com
+    path: /
+    port: 443
+
+  - name: my service
+    type: k8s
+    search:
+      region: eu-west-1
+      service:
+        name: nginx-ingress-controller
+        namespace: ingress
+    domainName: grafana.mydomain.com
+    path: /
+    port: 443
