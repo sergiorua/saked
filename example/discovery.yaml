@@ -36,6 +36,15 @@ endpoints:
     path: /
     port: 443
 
+  - name: AppSync GraphQL
+    type: appsync
+    search:
+      name: my_appsync_app
+      region: eu-west-1
+    domainName: appsync.mydomain.com
+    path: /
+    port: 443
+
   - name: my service
     type: k8s
     search:

@@ -9,9 +9,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/elasticsearchservice"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 )
 
@@ -40,6 +37,7 @@ type DiscoveryConfig struct {
 		Name   string `yaml:"name"`
 		Type   string `yaml:"type"`
 		Search struct {
+			Name   string `yaml:"name"`
 			Region string `yaml:"region"`
 			Tags   []struct {
 				Name  string `yaml:"name"`
@@ -89,26 +87,6 @@ func (c *DiscoveryConfig) getConf() *DiscoveryConfig {
 	return c
 }
 
-func discoverES(domainName string, awsRegion string) string {
-	/* Connect to AWS */
-	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(awsRegion),
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	svc := elasticsearchservice.New(sess)
-	params := &elasticsearchservice.DescribeElasticsearchDomainInput{
-		DomainName: aws.String(domainName),
-	}
-	resp, err := svc.DescribeElasticsearchDomain(params)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	return *resp.DomainStatus.Endpoints["vpc"]
-}
-
 func main() {
 	var lb *elbv2.LoadBalancer
 	var listenerHttps *elbv2.Listener
@@ -130,8 +108,8 @@ func main() {
 	} else {
 		lb = lbs.LoadBalancers[0]
 	}
-	listenerHttp = findListener(*lb.LoadBalancerArn, 443, discoveryConfig.Config.Region)
-	listenerHttps = findListener(*lb.LoadBalancerArn, 80, discoveryConfig.Config.Region)
+	listenerHttps = findListener(*lb.LoadBalancerArn, 443, discoveryConfig.Config.Region)
+	listenerHttp = findListener(*lb.LoadBalancerArn, 80, discoveryConfig.Config.Region)
 
 	addAWSTags(
 		discoveryConfig.Config.Tags,
@@ -175,25 +153,42 @@ func main() {
 						discoveryConfig.Endpoints[i].Search.Region)
 				}
 			}
-		case "k8s":
-			log.Printf("Discovery of Kubernetes services: %s in %s namespace\n",
-				discoveryConfig.Endpoints[i].Search.Service.Name,
-				discoveryConfig.Endpoints[i].Search.Service.Namespace)
-			srv, err := discoverK8sService(kubeconfig,
-				discoveryConfig.Endpoints[i].Search.Service.Name,
-				discoveryConfig.Endpoints[i].Search.Service.Namespace)
-			if err != nil {
-				log.Fatalln(err)
-				continue
-			}
-			log.Println(srv.Status.LoadBalancer.Ingress[0].Hostname)
-			addRule(*lb.LoadBalancerArn,
-				listenerArn,
-				discoveryConfig.Endpoints[i].DomainName,
-				srv.Status.LoadBalancer.Ingress[0].Hostname,
-				discoveryConfig.Endpoints[i].Path,
-				discoveryConfig.Endpoints[i].Search.Region)
+		case "appsync":
+			{
+				log.Println("Discoverying AppSync")
+				appsync := discoverAppsync(discoveryConfig.Endpoints[i].Search.Name,
+					discoveryConfig.Endpoints[i].Search.Region)
 
+				if appsync != "" {
+					addRule(*lb.LoadBalancerArn,
+						listenerArn,
+						discoveryConfig.Endpoints[i].DomainName,
+						appsync,
+						discoveryConfig.Endpoints[i].Path,
+						discoveryConfig.Endpoints[i].Search.Region)
+				}
+
+			}
+		case "k8s":
+			{
+				log.Printf("Discovery of Kubernetes services: %s in %s namespace\n",
+					discoveryConfig.Endpoints[i].Search.Service.Name,
+					discoveryConfig.Endpoints[i].Search.Service.Namespace)
+				srv, err := discoverK8sService(kubeconfig,
+					discoveryConfig.Endpoints[i].Search.Service.Name,
+					discoveryConfig.Endpoints[i].Search.Service.Namespace)
+				if err != nil {
+					log.Fatalln(err)
+					continue
+				}
+				log.Println(srv.Status.LoadBalancer.Ingress[0].Hostname)
+				addRule(*lb.LoadBalancerArn,
+					listenerArn,
+					discoveryConfig.Endpoints[i].DomainName,
+					srv.Status.LoadBalancer.Ingress[0].Hostname,
+					discoveryConfig.Endpoints[i].Path,
+					discoveryConfig.Endpoints[i].Search.Region)
+			}
 		default:
 			{
 				log.Printf("Unsupported type %s\n", t)
