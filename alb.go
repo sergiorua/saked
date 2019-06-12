@@ -199,7 +199,9 @@ func addDefaultListeners(lbArn string, returnCode string, sslCert string, awsReg
 		log.Fatal(err)
 	}
 
-	log.Println(result)
+	if verbose {
+		log.Println(result)
+	}
 	return result.Listeners
 }
 
@@ -235,8 +237,6 @@ func ruleExists(listenerArn string, targetHostHeader string, endpoint string, pa
 		if x > priority {
 			priority = x
 		}
-		//log.Println(rule)
-		//log.Println(rule.Conditions)
 		for _, cond := range rule.Conditions {
 			log.Println("Condition Value: ")
 			for _, v := range cond.HostHeaderConfig.Values {
@@ -250,7 +250,6 @@ func ruleExists(listenerArn string, targetHostHeader string, endpoint string, pa
 	return found, priority
 }
 
-// FIXME: check if exists before adding again
 func addRule(lbArn string, listenerArn string, targetHostHeader string, endpoint string, path string, awsRegion string) {
 
 	found, priority := ruleExists(listenerArn, targetHostHeader, endpoint, path, awsRegion)
@@ -296,5 +295,7 @@ func addRule(lbArn string, listenerArn string, targetHostHeader string, endpoint
 		log.Println(err)
 	}
 
-	log.Println(result)
+	if verbose {
+		log.Println(result)
+	}
 }
